@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, Fingerprint, Clock, Shield, Users } from 'lucide-react';
+import loginIllustration from '../assets/login_illustration.png';
 
 export default function Login({ setAuth }) {
     const [username, setUsername] = useState('');
@@ -38,7 +39,7 @@ export default function Login({ setAuth }) {
                 <div className="relative z-10 flex flex-col justify-center items-center w-full p-12">
                     {/* Illustration */}
                     <img
-                        src="/src/assets/login_illustration.png"
+                        src={loginIllustration}
                         alt="Attendance Management"
                         className="w-full max-w-lg mb-8 drop-shadow-2xl"
                     />
@@ -84,25 +85,25 @@ export default function Login({ setAuth }) {
                     {/* Logo */}
                     <div className="text-center mb-8">
                         <div className="mb-4 flex justify-center">
-                            <img 
-                                src="/vayutime_logo.png?v=5" 
-                                alt="VayuTime" 
-                                className="mx-auto object-contain" 
-                                style={{ 
-                                    height: '160px', 
-                                    width: 'auto', 
+                            <img
+                                src="/vayutime_logo.png?v=5"
+                                alt="VayuTime"
+                                className="mx-auto object-contain"
+                                style={{
+                                    height: '160px',
+                                    width: 'auto',
                                     maxWidth: '500px',
                                     display: 'block',
                                     objectFit: 'contain'
-                                }} 
-                                onError={(e) => { 
+                                }}
+                                onError={(e) => {
                                     e.target.style.display = 'none';
                                     // Show text fallback if image fails
                                     const fallback = document.createElement('div');
                                     fallback.className = 'flex items-center justify-center gap-2';
                                     fallback.innerHTML = '<span class="text-5xl font-bold" style="color: #1E293B">Vayu</span><span class="text-5xl font-bold" style="color: #059669">Time</span>';
                                     e.target.parentElement?.appendChild(fallback);
-                                }} 
+                                }}
                             />
                         </div>
                         <p className="text-slate-grey text-sm font-medium">Sign in to your account</p>
