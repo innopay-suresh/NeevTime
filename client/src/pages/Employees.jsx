@@ -1,0 +1,1123 @@
+import React, { useEffect, useState, useRef } from 'react';
+import api from '../api';
+import {
+    Plus, Trash2, Upload, Download,
+    ChevronDown, Search, RefreshCw,
+    Smartphone, ArrowRightLeft, X, Filter, Settings,
+    Fingerprint, ScanFace
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import ResignationModal from '../components/ResignationModal';
+import SkeletonLoader from '../components/SkeletonLoader';
+
+export default function Employees() {
+    const [employees, setEmployees] = useState([]);
+    const [filteredEmployees, setFilteredEmployees] = useState([]);
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Menus
+    const [showTransferMenu, setShowTransferMenu] = useState(false);
+    const [showImportMenu, setShowImportMenu] = useState(false);
+    const [showAppMenu, setShowAppMenu] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+    // Modals & Refs
+    const [showAddModal, setShowAddModal] = useState(false);
+    // Toast notification state
+    const [toast, setToast] = useState(null);
+    const toastTimeoutRef = useRef(null);
+    const showToast = (message, type = 'info') => {
+        // Clear any existing timeout
+        if (toastTimeoutRef.current) {
+            clearTimeout(toastTimeoutRef.current);
+        }
+        setToast({ message, type });
+        // Show toast for 8 seconds for better visibility
+        toastTimeoutRef.current = setTimeout(() => {
+            setToast(null);
+            toastTimeoutRef.current = null;
+        }, 8000);
+    };
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [showTransferModal, setShowTransferModal] = useState(false);
+    const [showResignationModal, setShowResignationModal] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmAction, setConfirmAction] = useState(null);
+    const [confirmMessage, setConfirmMessage] = useState('');
+    const [transferType, setTransferType] = useState(null);
+    const fileInputRef = useRef(null);
+
+    // Form Data
+    const [newEmp, setNewEmp] = useState({
+        employee_code: '',
+        name: '',
+        department_id: '',
+        designation: '',
+        area_id: '',
+        card_number: '',
+        password: '',
+        privilege: 0,
+        gender: 'Male',
+        dob: '',
+        joining_date: new Date().toISOString().split('T')[0],
+        mobile: '',
+        email: '',
+        address: '',
+        status: 'active',
+        employment_type: 'Permanent'
+    });
+
+    const [transferData, setTransferData] = useState({
+        targetId: '',
+        effectiveDate: new Date().toISOString().split('T')[0]
+    });
+    // Target Selection State
+    const [targetValue, setTargetValue] = useState('');
+
+    const [departments, setDepartments] = useState([]);
+    const [areas, setAreas] = useState([]);
+    const [positions, setPositions] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
+
+    // Close dropdowns when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            // Check if click is outside any dropdown container
+            const isClickInsideDropdown = event.target.closest('.dropdown-container') ||
+                event.target.closest('.dropdown-menu');
+
+            if (!isClickInsideDropdown) {
+                setShowTransferMenu(false);
+                setShowImportMenu(false);
+                setShowAppMenu(false);
+                setShowMoreMenu(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    useEffect(() => {
+        fetchEmployees();
+        fetchDepsAndAreas();
+    }, []);
+
+    useEffect(() => {
+        if (!searchQuery) {
+            setFilteredEmployees(employees);
+        } else {
+            const lower = searchQuery.toLowerCase();
+            setFilteredEmployees(employees.filter(e =>
+                e.name.toLowerCase().includes(lower) ||
+                e.employee_code.toLowerCase().includes(lower) ||
+                (e.department_name && e.department_name.toLowerCase().includes(lower))
+            ));
+        }
+    }, [searchQuery, employees]);
+
+    const [refreshing, setRefreshing] = useState(false);
+
+    const fetchEmployees = async () => {
+        try {
+            setLoading(true);
+            console.log('[Employees] fetchEmployees called');
+            const res = await api.get('/api/employees');
+            console.log('[Employees] Fetched', res.data?.length || 0, 'employees');
+            setEmployees(res.data);
+            setFilteredEmployees(res.data);
+            setSelectedIds([]);
+        } catch (err) {
+            console.error("Failed to fetch employees", err);
+            showToast('Failed to refresh employees', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchDepsAndAreas = async () => {
+        try {
+            const deps = await api.get('/api/departments').catch(() => ({ data: [] }));
+            const ars = await api.get('/api/areas').catch(() => ({ data: [] }));
+            const pos = await api.get('/api/positions').catch(() => ({ data: [] }));
+            setDepartments(deps.data);
+            setAreas(ars.data);
+            setPositions(pos.data);
+        } catch (err) { console.warn('Lookups failed', err); }
+    };
+
+    const toggleSelect = (id) => {
+        console.log('Toggling ID:', id);
+        if (!id) {
+            console.warn('Attempted to select undefined ID');
+            return;
+        }
+        setSelectedIds(prev => {
+            const newSelection = prev.includes(id)
+                ? prev.filter(i => i !== id)
+                : [...prev, id];
+            console.log('New Selection:', newSelection);
+            return newSelection;
+        });
+    };
+
+    const handleAddSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/api/employees', newEmp);
+            setShowAddModal(false);
+            setNewEmp({
+                employee_code: '', name: '', department_id: '', designation: '', area_id: '',
+                card_number: '', password: '', privilege: 0, gender: 'Male', dob: '',
+                joining_date: '', mobile: '', email: '', address: '', status: 'active', employment_type: 'Permanent'
+            });
+            fetchEmployees();
+        } catch (err) { showToast('Failed to add employee: ' + (err.response?.data?.error || err.message), 'error'); }
+    };
+
+    // Delete Handler
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+    const handleDelete = () => {
+        if (selectedIds.length === 0) return showToast('Select employees to delete', 'error');
+        setShowDeleteModal(true);
+    };
+
+    const confirmDelete = async () => {
+        try {
+            await api.delete(`/api/employees?ids=${selectedIds.join(',')}`);
+            fetchEmployees();
+            setShowDeleteModal(false);
+        } catch (err) {
+            console.error(err);
+            showToast('Delete failed', 'error');
+        }
+    };
+
+    const handleTransfer = (type) => {
+        if (selectedIds.length === 0) return showToast('Select employees first', 'error');
+        setTransferType(type);
+        setShowTransferModal(true);
+    };
+
+    const submitTransfer = async (e) => {
+        e.preventDefault();
+
+        if (!targetValue) return showToast('Please select a target destination', 'error');
+
+        try {
+            await api.post('/api/personnel-transfer', {
+                ids: selectedIds,
+                type: transferType,
+                targetId: targetValue
+            });
+            showToast(`Transferred ${selectedIds.length} employees to new ${transferType}. Sync commands sent.`, 'success');
+            setShowTransferModal(false);
+            setTargetValue('');
+            fetchEmployees();
+        } catch (err) {
+            console.error(err);
+            showToast('Transfer failed: ' + (err.response?.data?.error || err.message), 'error');
+        }
+    };
+
+    // Export Handler
+    const handleExport = () => {
+        try {
+            // Create CSV content
+            const headers = ['Employee ID', 'Name', 'Department', 'Mobile', 'Email', 'Position', 'Area', 'Status', 'Employment Type', 'Joining Date'];
+            const csvRows = [headers.join(',')];
+
+            filteredEmployees.forEach(emp => {
+                const row = [
+                    emp.employee_code || '',
+                    emp.name || '',
+                    emp.department_name || '',
+                    emp.mobile || '',
+                    emp.email || '',
+                    emp.designation || '',
+                    emp.area_name || '',
+                    emp.status || '',
+                    emp.employment_type || '',
+                    emp.joining_date || ''
+                ];
+                // Escape commas and quotes in data
+                const escapedRow = row.map(field => {
+                    const stringField = String(field);
+                    if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+                        return `"${stringField.replace(/"/g, '""')}"`;
+                    }
+                    return stringField;
+                });
+                csvRows.push(escapedRow.join(','));
+            });
+
+            const csvContent = csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', `employees_export_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error('Export failed:', err);
+            showToast('Failed to export data', 'error');
+        }
+    };
+
+    // Import Handler (File Upload)
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            const text = evt.target.result;
+            try {
+                // Initial simple CSV parsing
+                const lines = text.split(/\r?\n/);
+                const data = lines.map(line => {
+                    const parts = line.split(',');
+                    if (parts.length < 2) return null;
+                    return {
+                        employee_code: parts[0]?.trim(),
+                        name: parts[1]?.trim(),
+                        department_id: parts[2]?.trim() || null
+                    };
+                }).filter(Boolean);
+
+                if (data.length === 0) {
+                    showToast('No valid data found in CSV', 'error');
+                    return;
+                }
+
+                await axios.post('/api/employees/import', { employees: data });
+                setShowImportModal(false);
+                fetchEmployees();
+                showToast(`Imported ${data.length} records`, 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('Import failed', 'error');
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const handleAppAccess = async (enabled) => {
+        if (selectedIds.length === 0) return showToast('Select employees first', 'error');
+        try {
+            await axios.put('/api/employees/app-access', { ids: selectedIds, enabled });
+            fetchEmployees();
+            showToast(`App Access ${enabled ? 'Enabled' : 'Disabled'} for ${selectedIds.length} employees`, 'success');
+        } catch (err) { showToast('Update failed', 'error'); }
+    };
+
+    const handleResignationSubmit = async (formData) => {
+        try {
+            // Loop through selected IDs and send resignation for each
+            // (Since backend endpoint is setup for single employee currently)
+            let successCount = 0;
+            const employeesToProcess = filteredEmployees.filter(e => selectedIds.includes(e.id));
+
+            for (const emp of employeesToProcess) {
+                // Convert string "Enable"/"Disable" to boolean for DB
+                const payload = {
+                    employee_code: emp.employee_code,
+                    ...formData,
+                    attendance_enabled: formData.attendance_enabled === 'Enable',
+                    reason_enabled: formData.reason_enabled === 'Enable'
+                };
+
+                await api.post('/api/employees/resign', payload);
+                successCount++;
+            }
+
+            showToast(`Successfully processed resignation for ${successCount} employees.`, 'success');
+            setShowResignationModal(false);
+            setSelectedIds([]); // Clear selection
+            fetchEmployees(); // Refresh list
+        } catch (err) {
+            console.error(err);
+            showToast('Operation failed: ' + (err.response?.data?.error || err.message), 'error');
+        }
+    };
+
+    // Dropdown Item Component
+    const DropdownItem = ({ label, onClick, danger = false }) => (
+        <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); }}
+            onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClick?.();
+                // Close all dropdowns after action
+                setShowTransferMenu(false);
+                setShowImportMenu(false);
+                setShowAppMenu(false);
+                setShowMoreMenu(false);
+            }}
+            className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${danger ? 'text-red-600' : 'text-gray-700'}`}
+        >
+            {label}
+        </button>
+    );
+
+    const handleMoreSettings = (action) => {
+        console.log('HandleMoreSettings Action:', action, 'SelectedIds:', selectedIds);
+        if (selectedIds.length === 0) return showToast('Please select at least one employee.', 'error');
+
+        const messages = {
+            'push': `Resynchronize ${selectedIds.length} employees to all devices?`,
+            'pull': `Re-upload data for ${selectedIds.length} employees from devices?`,
+            'delete-bio': `Delete biometric templates for ${selectedIds.length} employees from all devices? This cannot be undone.`
+        };
+
+        // Show custom confirmation modal instead of window.confirm
+        setConfirmMessage(messages[action]);
+        setConfirmAction(() => async () => {
+            const endpoints = {
+                'push': '/api/devices/employee-actions/push',
+                'pull': '/api/devices/employee-actions/pull',
+                'delete-bio': '/api/devices/employee-actions/delete-template'
+            };
+
+            try {
+                const res = await api.post(endpoints[action], { employee_ids: selectedIds });
+                showToast('Success: ' + res.data.message, 'success');
+                setShowMoreMenu(false);
+            } catch (err) {
+                console.error(err);
+                showToast('Operation failed: ' + (err.response?.data?.error || err.message), 'error');
+            }
+        });
+        setShowConfirmModal(true);
+    };
+
+    const handleConfirmAction = () => {
+        if (confirmAction) {
+            confirmAction();
+        }
+        setShowConfirmModal(false);
+        setConfirmAction(null);
+        setConfirmMessage('');
+    };
+
+    return (
+        <div className="flex flex-col h-[calc(100vh-120px)] card-base overflow-hidden relative">
+            {/* Toolbar */}
+            <div className="flex items-center gap-3 p-4 border-b border-gray-200 text-sm flex-wrap" style={{ backgroundColor: '#FFFFFF' }}>
+                <button
+                    onClick={() => setShowAddModal(true)}
+                    className="btn-primary flex items-center gap-2 shadow-saffron"
+                >
+                    <Plus size={18} /> Add Employee
+                </button>
+                <div className="h-8 w-px bg-gray-200 mx-2 hidden md:block"></div>
+                <button
+                    onClick={handleDelete}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all border-2 hover:shadow-lg"
+                    style={{ 
+                        backgroundColor: '#FFFFFF',
+                        borderColor: '#DC2626',
+                        color: '#DC2626'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#FEE2E2';
+                        e.currentTarget.style.borderColor = '#DC2626';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#FFFFFF';
+                        e.currentTarget.style.borderColor = '#DC2626';
+                    }}
+                >
+                    <Trash2 size={16} /> Delete
+                </button>
+                <button
+                    type="button"
+                    onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('[Employees] Refresh button clicked');
+                        setRefreshing(true);
+                        try {
+                            await Promise.all([fetchEmployees(), fetchDepsAndAreas()]);
+                            showToast('Data refreshed successfully', 'success');
+                        } catch (err) {
+                            console.error('[Employees] Refresh error:', err);
+                            showToast('Failed to refresh data', 'error');
+                        } finally {
+                            setRefreshing(false);
+                        }
+                    }}
+                    disabled={refreshing}
+                    className={`relative flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all border-2 ${refreshing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:shadow-lg'}`}
+                    style={{ 
+                        backgroundColor: '#FFFFFF',
+                        borderColor: '#2563EB',
+                        color: '#2563EB',
+                        zIndex: 30,
+                        pointerEvents: 'auto'
+                    }}
+                    onMouseEnter={(e) => {
+                        if (!refreshing) {
+                            e.currentTarget.style.backgroundColor = '#DBEAFE';
+                            e.currentTarget.style.borderColor = '#2563EB';
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        if (!refreshing) {
+                            e.currentTarget.style.backgroundColor = '#FFFFFF';
+                            e.currentTarget.style.borderColor = '#2563EB';
+                        }
+                    }}
+                >
+                    <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} /> Refresh
+                </button>
+                <button
+                    onClick={handleExport}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all border-2 hover:shadow-lg"
+                    style={{ 
+                        backgroundColor: '#FFFFFF',
+                        borderColor: '#059669',
+                        color: '#059669'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#D1FAE5';
+                        e.currentTarget.style.borderColor = '#059669';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#FFFFFF';
+                        e.currentTarget.style.borderColor = '#059669';
+                    }}
+                >
+                    <Download size={16} /> Export
+                </button>
+
+                {/* Import Dropdown */}
+                <div className="relative dropdown-container">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowImportMenu(!showImportMenu);
+                            // Close other dropdowns
+                            setShowTransferMenu(false);
+                            setShowAppMenu(false);
+                            setShowMoreMenu(false);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all border-2 hover:shadow-lg"
+                        style={{ 
+                            backgroundColor: '#FFFFFF',
+                            borderColor: '#3B82F6',
+                            color: '#3B82F6'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#DBEAFE';
+                            e.currentTarget.style.borderColor = '#3B82F6';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FFFFFF';
+                            e.currentTarget.style.borderColor = '#3B82F6';
+                        }}
+                    >
+                        <Upload size={16} /> Import <ChevronDown size={14} className={showImportMenu ? 'rotate-180 transition-transform' : ''} />
+                    </button>
+                    {showImportMenu && (
+                        <>
+                            <div className="fixed inset-0 z-10" onClick={() => setShowImportMenu(false)}></div>
+                            <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-100 shadow-xl rounded-2xl z-20 overflow-hidden dropdown-menu">
+                            <DropdownItem label="Import Employee (CSV)" onClick={() => setShowImportModal(true)} />
+                        </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Personnel Transfer Dropdown */}
+                <div className="relative dropdown-container">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowTransferMenu(!showTransferMenu);
+                            // Close other dropdowns
+                            setShowImportMenu(false);
+                            setShowAppMenu(false);
+                            setShowMoreMenu(false);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all border-2 hover:shadow-lg"
+                        style={{ 
+                            backgroundColor: '#FFFFFF',
+                            borderColor: '#7C3AED',
+                            color: '#7C3AED'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#EDE9FE';
+                            e.currentTarget.style.borderColor = '#7C3AED';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FFFFFF';
+                            e.currentTarget.style.borderColor = '#7C3AED';
+                        }}
+                    >
+                        <ArrowRightLeft size={16} /> Transfer <ChevronDown size={14} className={showTransferMenu ? 'rotate-180 transition-transform' : ''} />
+                    </button>
+                    {
+                        showTransferMenu && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setShowTransferMenu(false)}></div>
+                                <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-gray-100 shadow-xl rounded-2xl z-20 overflow-hidden dropdown-menu">
+                            <DropdownItem label="Department Transfer" onClick={() => handleTransfer('Department')} />
+                            <DropdownItem label="Position Transfer" onClick={() => handleTransfer('Position')} />
+                            <DropdownItem label="Move to New Area" onClick={() => handleTransfer('Area')} />
+                            <DropdownItem
+                                label="Resignation"
+                                onClick={() => {
+                                    if (selectedIds.length === 0) return showToast('Select employees first', 'error');
+                                    setShowResignationModal(true);
+                                }}
+                                danger
+                            />
+                        </div>
+                            </>
+                        )
+                    }
+                </div >
+
+                {/* App Dropdown */}
+                <div className="relative dropdown-container">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAppMenu(!showAppMenu);
+                            // Close other dropdowns
+                            setShowImportMenu(false);
+                            setShowTransferMenu(false);
+                            setShowMoreMenu(false);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all border-2 hover:shadow-lg"
+                        style={{ 
+                            backgroundColor: '#FFFFFF',
+                            borderColor: '#0891B2',
+                            color: '#0891B2'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#CFFAFE';
+                            e.currentTarget.style.borderColor = '#0891B2';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FFFFFF';
+                            e.currentTarget.style.borderColor = '#0891B2';
+                        }}
+                    >
+                        <Smartphone size={16} /> App Access <ChevronDown size={14} className={showAppMenu ? 'rotate-180 transition-transform' : ''} />
+                    </button>
+                    {
+                        showAppMenu && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setShowAppMenu(false)}></div>
+                                <div className="absolute top-full left-0 mt-2 w-40 bg-white border border-gray-100 shadow-xl rounded-2xl z-20 overflow-hidden dropdown-menu">
+                            <DropdownItem label="Enable Access" onClick={() => handleAppAccess(true)} />
+                            <DropdownItem label="Disable Access" onClick={() => handleAppAccess(false)} danger />
+                        </div>
+                            </>
+                        )
+                    }
+                </div >
+
+                {/* More Settings Dropdown */}
+                < div className="relative dropdown-container" >
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMoreMenu(!showMoreMenu);
+                            // Close other dropdowns
+                            setShowImportMenu(false);
+                            setShowTransferMenu(false);
+                            setShowAppMenu(false);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all border-2 hover:shadow-lg"
+                        style={{ 
+                            backgroundColor: '#FFFFFF',
+                            borderColor: '#64748B',
+                            color: '#64748B'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#F1F5F9';
+                            e.currentTarget.style.borderColor = '#64748B';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FFFFFF';
+                            e.currentTarget.style.borderColor = '#64748B';
+                        }}
+                    >
+                        <Settings size={16} /> More <ChevronDown size={14} className={showMoreMenu ? 'rotate-180 transition-transform' : ''} />
+                    </button>
+                    {
+                        showMoreMenu && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setShowMoreMenu(false)}></div>
+                                <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-gray-100 shadow-xl rounded-2xl z-20 overflow-hidden dropdown-menu">
+                            <DropdownItem label="Resynchronize to device" onClick={() => handleMoreSettings('push')} />
+                            <DropdownItem label="Re-upload from device" onClick={() => handleMoreSettings('pull')} />
+                            <DropdownItem label="Delete Biometric Template" onClick={() => handleMoreSettings('delete-bio')} danger />
+                        </div>
+                            </>
+                        )
+                    }
+                </div >
+
+                <div className="ml-auto w-72 relative">
+                    <input
+                        type="text"
+                        placeholder="Search employee by name, code..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="input-base pl-10 py-2 text-sm"
+                    />
+                    <Search size={16} className="absolute left-3.5 top-2.5 text-slate-grey" />
+                </div>
+            </div >
+
+            {/* Table */}
+            <div className="flex-1 overflow-auto custom-scrollbar" style={{ backgroundColor: '#FFFFFF' }}>
+                {loading ? (
+                    <SkeletonLoader rows={10} columns={10} showHeader={true} />
+                ) : (
+                <table className="w-full text-left text-sm border-collapse">
+                    <thead>
+                        <tr>
+                            <th className="table-header w-12 text-center">
+                                <input
+                                    type="checkbox"
+                                    className="rounded border-gray-300 text-saffron focus:ring-saffron"
+                                    onChange={(e) => {
+                                        if (e.target.checked) setSelectedIds(filteredEmployees.map(e => e.id));
+                                        else setSelectedIds([]);
+                                    }}
+                                />
+                            </th>
+                            <th className="table-header">Employee Id</th>
+                            <th className="table-header">Full Name</th>
+                            <th className="table-header">Department</th>
+                            <th className="table-header">Mobile</th>
+                            <th className="table-header text-center">Status</th>
+                            <th className="table-header text-center">Biometrics</th>
+                            <th className="table-header text-center">App Access</th>
+                            <th className="table-header">Position</th>
+                            <th className="table-header">Area</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredEmployees.map(emp => (
+                            <tr key={emp.employee_code} className="table-row group">
+                                <td className="px-6 py-4 text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds.includes(emp.id)}
+                                        onChange={() => toggleSelect(emp.id)}
+                                        className="rounded border-gray-300 text-saffron focus:ring-saffron"
+                                    />
+                                </td>
+                                <td className="px-6 py-4 font-mono text-saffron font-medium cursor-pointer" style={{ color: '#F97316' }} onClick={() => navigate(`/employees/${emp.id}`)}>{emp.employee_code}</td>
+                                <td className="px-6 py-4 font-semibold cursor-pointer" style={{ color: '#1E293B', fontWeight: 600 }} onClick={() => navigate(`/employees/${emp.id}`)}>{emp.name}</td>
+                                <td className="px-6 py-4" style={{ color: '#475569' }}>{emp.department_name || '-'}</td>
+                                <td className="px-6 py-4 font-mono text-xs" style={{ color: '#475569' }}>{emp.mobile || '-'}</td>
+                                <td className="px-6 py-4 text-center">
+                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium uppercase tracking-wide ${emp.status === 'active' ? 'badge-success' : 'badge-inactive'}`}>
+                                        {emp.status}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <Fingerprint size={18} className={emp.has_fingerprint ? "text-green-600" : "text-gray-300"} />
+                                        <ScanFace size={18} className={emp.has_face ? "text-green-600" : "text-gray-300"} />
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium uppercase tracking-wide ${emp.app_login_enabled ? 'badge-success' : 'badge-inactive'}`}>
+                                        {emp.app_login_enabled ? 'Enabled' : 'Disabled'}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4" style={{ color: '#475569' }}>{emp.designation || '-'}</td>
+                                <td className="px-6 py-4" style={{ color: '#475569' }}>{emp.area_name || '-'}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                )}
+            </div>
+
+            <div className="p-4 border-t border-gray-200 text-xs font-medium text-slate-grey flex justify-between items-center" style={{ backgroundColor: '#F8FAFC' }}>
+                <span>Total <span className="text-charcoal font-bold">{filteredEmployees.length}</span> Records</span>
+                <div className="flex gap-2">
+                    <span className="text-slate-grey">Selected: <span className="text-saffron font-bold text-sm">{selectedIds.length}</span></span>
+                </div>
+            </div>
+
+            {/* Add Employee Modal */}
+            {
+                showAddModal && (
+                    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                        <div className="rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border" style={{ 
+                            borderRadius: '16px',
+                            background: 'linear-gradient(135deg, #FFFFFF 0%, #FFFBF5 100%)',
+                            borderColor: '#FED7AA'
+                        }}>
+                            <div className="px-8 py-5 border-b flex justify-between items-center" style={{ 
+                                background: 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 100%)',
+                                borderColor: '#FED7AA'
+                            }}>
+                                <h3 className="font-semibold text-xl" style={{ color: '#1E293B', fontWeight: 600 }}>Add Employee</h3>
+                            <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-50 rounded-full text-slate-grey transition-colors"><X size={20} /></button>
+                        </div>
+                            <form onSubmit={handleAddSubmit} className="p-8 overflow-y-auto max-h-[calc(90vh-80px)] custom-scrollbar" autoComplete="off">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {/* Personal Details */}
+                                <div className="col-span-1 md:col-span-3 flex items-center gap-2 pb-2 mb-2 border-b border-gray-100">
+                                    <div className="w-1 h-4 bg-saffron rounded-full"></div>
+                                    <span className="text-sm font-bold text-charcoal uppercase tracking-wider">Personal Details</span>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Employee ID *</label>
+                                    <input required type="text" className="input-base"
+                                        value={newEmp.employee_code} onChange={e => setNewEmp({ ...newEmp, employee_code: e.target.value })}
+                                            placeholder="e.g. EMP001" autoComplete="off" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Full Name *</label>
+                                    <input required type="text" className="input-base"
+                                        value={newEmp.name} onChange={e => setNewEmp({ ...newEmp, name: e.target.value })}
+                                        placeholder="John Doe" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Gender</label>
+                                    <select className="input-base"
+                                        value={newEmp.gender} onChange={e => setNewEmp({ ...newEmp, gender: e.target.value })}>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Date of Birth</label>
+                                    <input type="date" className="input-base"
+                                        value={newEmp.dob} onChange={e => setNewEmp({ ...newEmp, dob: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Mobile</label>
+                                    <input type="text" className="input-base"
+                                        value={newEmp.mobile} onChange={e => setNewEmp({ ...newEmp, mobile: e.target.value })}
+                                        placeholder="+91..." />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Email</label>
+                                    <input type="email" className="input-base"
+                                        value={newEmp.email} onChange={e => setNewEmp({ ...newEmp, email: e.target.value })}
+                                        placeholder="john@example.com" />
+                                </div>
+                                <div className="col-span-1 md:col-span-3">
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Address</label>
+                                    <textarea rows={2} className="input-base resize-none"
+                                        value={newEmp.address} onChange={e => setNewEmp({ ...newEmp, address: e.target.value })}
+                                        placeholder="Enter full address" />
+                                </div>
+
+                                {/* Work Details */}
+                                <div className="col-span-1 md:col-span-3 flex items-center gap-2 pb-2 mb-2 mt-4 border-b border-gray-100">
+                                    <div className="w-1 h-4 bg-saffron rounded-full"></div>
+                                    <span className="text-sm font-bold text-charcoal uppercase tracking-wider">Work Details</span>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Department</label>
+                                    <select className="input-base"
+                                        value={newEmp.department_id} onChange={e => setNewEmp({ ...newEmp, department_id: e.target.value })}>
+                                        <option value="">Select Department</option>
+                                        {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Position / Designation</label>
+                                        <select className="input-base"
+                                            value={newEmp.designation} onChange={e => setNewEmp({ ...newEmp, designation: e.target.value })}>
+                                            <option value="">Select Position</option>
+                                            {positions.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                                        </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Area</label>
+                                    <select className="input-base"
+                                        value={newEmp.area_id} onChange={e => setNewEmp({ ...newEmp, area_id: e.target.value })}>
+                                        <option value="">Select Area</option>
+                                        {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Joining Date</label>
+                                    <input type="date" className="input-base"
+                                        value={newEmp.joining_date} onChange={e => setNewEmp({ ...newEmp, joining_date: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Status</label>
+                                    <select className="input-base"
+                                        value={newEmp.status} onChange={e => setNewEmp({ ...newEmp, status: e.target.value })}>
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                        <option value="resigned">Resigned</option>
+                                        <option value="terminated">Terminated</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Employment Type</label>
+                                    <select className="input-base"
+                                        value={newEmp.employment_type} onChange={e => setNewEmp({ ...newEmp, employment_type: e.target.value })}>
+                                        <option value="Permanent">Permanent</option>
+                                        <option value="Contract">Contract</option>
+                                        <option value="Intern">Intern</option>
+                                    </select>
+                                </div>
+
+                                {/* System Access */}
+                                <div className="col-span-1 md:col-span-3 flex items-center gap-2 pb-2 mb-2 mt-4 border-b border-gray-100">
+                                    <div className="w-1 h-4 bg-saffron rounded-full"></div>
+                                    <span className="text-sm font-bold text-charcoal uppercase tracking-wider">System & Device</span>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Card Number</label>
+                                    <input type="text" className="input-base"
+                                        value={newEmp.card_number} onChange={e => setNewEmp({ ...newEmp, card_number: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-grey mb-1.5">Password (Device)</label>
+                                    <input type="password" className="input-base"
+                                            value={newEmp.password} onChange={e => setNewEmp({ ...newEmp, password: e.target.value })}
+                                            autoComplete="new-password" />
+                                </div>
+
+                                <div className="col-span-1 md:col-span-3 flex justify-end gap-4 pt-6 border-t border-gray-100 mt-4">
+                                    <button type="button" onClick={() => setShowAddModal(false)} className="px-6 py-2.5 rounded-full text-slate-grey hover:bg-gray-50 font-medium transition-colors">Cancel</button>
+                                    <button type="submit" className="btn-primary px-8">Add Employee</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                )
+            }
+
+            {/* Import Modal */}
+            {
+                showImportModal && (
+                    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                        <div className="rounded-2xl shadow-xl w-full max-w-lg p-0 overflow-hidden border" style={{ 
+                            borderRadius: '16px',
+                            background: 'linear-gradient(135deg, #FFFFFF 0%, #FFFBF5 100%)',
+                            borderColor: '#FED7AA'
+                        }}>
+                            <div className="flex justify-between items-center p-5 border-b" style={{ 
+                                background: 'linear-gradient(135deg, #FFF7ED 0%, #FFFBF5 100%)',
+                                borderColor: '#FED7AA'
+                            }}>
+                                <h3 className="font-semibold text-xl" style={{ color: '#1E293B', fontWeight: 600 }}>Import Employees</h3>
+                            <button onClick={() => setShowImportModal(false)} className="p-2 hover:bg-white rounded-full transition-colors"><X size={20} className="text-slate-grey" /></button>
+                        </div>
+
+                        <div className="p-8 text-center">
+                            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-8 hover:bg-orange-50/50 hover:border-saffron/50 transition-all cursor-pointer group">
+                                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                                    <Upload className="text-blue-500" size={28} />
+                                </div>
+                                <h4 className="text-lg font-bold text-charcoal mb-2">Upload CSV File</h4>
+                                <p className="text-sm text-slate-grey mb-6">Format: ID, Name, DeptID</p>
+                                <div className="relative inline-block">
+                                    <button className="btn-secondary relative pointer-events-none">Select File</button>
+                                    <input
+                                        type="file"
+                                        accept=".csv"
+                                        onChange={handleFileUpload}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                )
+            }
+
+            {/* Transfer Modal */}
+            {
+                showTransferModal && (
+                    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                        <div className="rounded-2xl shadow-xl w-full max-w-md p-6 border" style={{ 
+                            borderRadius: '16px',
+                            background: 'linear-gradient(135deg, #FFFFFF 0%, #FFFBF5 100%)',
+                            borderColor: '#FED7AA'
+                        }}>
+                        <div className="mb-6">
+                            <div className="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center mb-4">
+                                <ArrowRightLeft className="text-saffron" size={24} />
+                            </div>
+                                <h3 className="font-semibold text-xl mb-1" style={{ color: '#1E293B', fontWeight: 600 }}>{transferType} Transfer</h3>
+                            <p className="text-slate-grey text-sm">Move <span className="font-bold text-charcoal">{selectedIds.length}</span> employees to a new {transferType.toLowerCase()}.</p>
+                        </div>
+
+                        <div className="mb-8">
+                            <label className="block text-sm font-bold text-charcoal mb-2">
+                                Select New {transferType}
+                            </label>
+
+                            {transferType === 'Department' && (
+                                <select
+                                    className="input-base"
+                                    value={targetValue}
+                                    onChange={(e) => setTargetValue(e.target.value)}
+                                >
+                                    <option value="">Select Department</option>
+                                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                </select>
+                            )}
+
+                            {transferType === 'Area' && (
+                                <select
+                                    className="input-base"
+                                    value={targetValue}
+                                    onChange={(e) => setTargetValue(e.target.value)}
+                                >
+                                    <option value="">Select Area</option>
+                                    {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                </select>
+                            )}
+
+                            {transferType === 'Position' && (
+                                <input
+                                    type="text"
+                                    className="input-base"
+                                    placeholder="Enter new position/designation"
+                                    value={targetValue}
+                                    onChange={(e) => setTargetValue(e.target.value)}
+                                />
+                            )}
+                        </div>
+
+                        <div className="flex justify-end gap-3">
+                            <button onClick={() => setShowTransferModal(false)} className="px-6 py-2.5 rounded-full text-slate-grey hover:bg-gray-50 font-medium transition-colors">Cancel</button>
+                            <button onClick={submitTransfer} className="btn-primary">Confirm Transfer</button>
+                        </div>
+                    </div>
+                </div>
+                )
+            }
+
+            {/* Delete Confirmation Modal */}
+            {
+                showDeleteModal && (
+                    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                        <div className="rounded-2xl shadow-xl w-full max-w-sm p-6 text-center border" style={{ 
+                            borderRadius: '16px',
+                            background: 'linear-gradient(135deg, #FFFFFF 0%, #FFFBF5 100%)',
+                            borderColor: '#FED7AA'
+                        }}>
+                        <div className="mx-auto w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                            <Trash2 className="text-red-500" size={32} />
+                        </div>
+                            <h3 className="text-xl font-semibold mb-2" style={{ color: '#1E293B', fontWeight: 600 }}>Delete Employees?</h3>
+                        <p className="text-slate-grey text-sm mb-8 leading-relaxed">
+                            Are you sure you want to delete <span className="font-bold text-charcoal">{selectedIds.length}</span> selected employees? This action cannot be undone.
+                        </p>
+                        <div className="flex justify-center gap-4">
+                            <button
+                                onClick={() => setShowDeleteModal(false)}
+                                className="px-6 py-2.5 border border-gray-200 rounded-full text-slate-grey hover:bg-gray-50 font-medium transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="px-6 py-2.5 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-lg shadow-red-200 font-bold transition-all"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                )
+            }
+
+            {/* Resignation Modal */}
+            <ResignationModal
+                isOpen={showResignationModal}
+                onClose={() => setShowResignationModal(false)}
+                selectedCount={selectedIds.length}
+                onConfirm={handleResignationSubmit}
+            />
+
+            {/* Confirmation Modal */}
+            {
+                showConfirmModal && (
+                    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                        <div className="rounded-2xl shadow-xl w-full max-w-md p-6 border" style={{ 
+                            borderRadius: '16px',
+                            background: 'linear-gradient(135deg, #FFFFFF 0%, #FFFBF5 100%)',
+                            borderColor: '#FED7AA'
+                        }}>
+                        <div className="mb-6">
+                            <div className="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center mb-4">
+                                <Settings className="text-saffron" size={24} />
+                            </div>
+                                <h3 className="font-semibold text-xl mb-1" style={{ color: '#1E293B', fontWeight: 600 }}>Confirm Action</h3>
+                            <p className="text-slate-grey text-sm">{confirmMessage}</p>
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowConfirmModal(false);
+                                    setConfirmAction(null);
+                                    setConfirmMessage('');
+                                }}
+                                className="px-6 py-2.5 rounded-full text-slate-grey hover:bg-gray-50 font-medium transition-colors border border-gray-200"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmAction}
+                                className="btn-primary"
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                )
+            }
+
+            {/* Toast UI */}
+            {
+                toast && (
+                    <div className={`fixed bottom-4 right-4 flex items-center px-4 py-3 rounded-lg shadow-xl text-white z-50 animate-in slide-in-from-bottom-5 duration-300 ${toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-blue-500'}`}>
+                        <span className="flex-1 pr-3">{toast.message}</span>
+                        <button
+                            onClick={() => {
+                                if (toastTimeoutRef.current) {
+                                    clearTimeout(toastTimeoutRef.current);
+                                    toastTimeoutRef.current = null;
+                                }
+                                setToast(null);
+                            }}
+                            className="text-white hover:text-gray-200 focus:outline-none font-bold text-lg leading-none"
+                        >
+                        ✕
+                    </button>
+                </div>
+                )
+            }
+        </div >
+    );
+}

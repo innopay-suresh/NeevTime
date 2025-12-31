@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  db:
+    image: postgres:15-alpine
+    container_name: attendance_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin}
+      POSTGRES_DB: ${DB_NAME:-attendance_db}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - app-network
+    ports:
+      - "5432:5432"
+
+  # Backend Server Service
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: attendance_server
+    restart: always
+    depends_on:
+      - db
+    environment:
+      - PORT=3001
+      - DB_SERVER=db
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-admin}
+      - DB_NAME=${DB_NAME:-attendance_db}
+      - DB_PORT=5432
+      - JWT_SECRET=${JWT_SECRET:-super_secret_key_123}
+    ports:
+      - "3001:3001"
+    networks:
+      - app-network
+
+  # Frontend Client Service
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: attendance_client
+    restart: always
+    depends_on:
+      - server
+    ports:
+      - "80:80"
+    networks:
+      - app-network
+
+volumes:
+  pgdata:
+
+
+networks:
+  app-network:
+    driver: bridge

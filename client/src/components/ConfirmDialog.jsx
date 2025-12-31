@@ -1,0 +1,141 @@
+import React from 'react';
+import { AlertTriangle, X } from 'lucide-react';
+
+let resolveCallback = null;
+let rejectCallback = null;
+
+export const confirm = (options) => {
+    return new Promise((resolve, reject) => {
+        resolveCallback = resolve;
+        rejectCallback = reject;
+        
+        // Trigger dialog render
+        const event = new CustomEvent('showConfirmDialog', { detail: options });
+        window.dispatchEvent(event);
+    });
+};
+
+export default function ConfirmDialog() {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const [options, setOptions] = React.useState({
+        title: 'Confirm Action',
+        message: 'Are you sure you want to proceed?',
+        confirmText: 'Confirm',
+        cancelText: 'Cancel',
+        type: 'warning', // 'warning', 'danger', 'info'
+        confirmButtonColor: 'bg-blue-600 hover:bg-blue-700'
+    });
+
+    React.useEffect(() => {
+        const handleShow = (event) => {
+            setOptions({
+                ...options,
+                ...event.detail
+            });
+            setIsOpen(true);
+        };
+
+        window.addEventListener('showConfirmDialog', handleShow);
+        return () => window.removeEventListener('showConfirmDialog', handleShow);
+    }, []);
+
+    const handleConfirm = () => {
+        setIsOpen(false);
+        if (resolveCallback) {
+            resolveCallback(true);
+            resolveCallback = null;
+        }
+    };
+
+    const handleCancel = () => {
+        setIsOpen(false);
+        if (rejectCallback) {
+            rejectCallback(false);
+            rejectCallback = null;
+        }
+    };
+
+    if (!isOpen) return null;
+
+    const colorSchemes = {
+        warning: {
+            icon: 'text-yellow-600',
+            bg: 'bg-yellow-50',
+            border: 'border-yellow-200'
+        },
+        danger: {
+            icon: 'text-red-600',
+            bg: 'bg-red-50',
+            border: 'border-red-200'
+        },
+        info: {
+            icon: 'text-blue-600',
+            bg: 'bg-blue-50',
+            border: 'border-blue-200'
+        }
+    };
+
+    const scheme = colorSchemes[options.type] || colorSchemes.warning;
+
+    return (
+        <>
+            {/* Backdrop */}
+            <div
+                className="fixed inset-0 bg-black bg-opacity-50 z-[9998] transition-opacity"
+                onClick={handleCancel}
+            />
+            
+            {/* Dialog */}
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="confirm-dialog-title"
+                aria-describedby="confirm-dialog-description"
+            >
+                <div
+                    className={`bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 pointer-events-auto transform transition-all ${
+                        isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+                    }`}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="flex items-start gap-4">
+                        <div className={`${scheme.bg} ${scheme.border} border-2 rounded-full p-2 flex-shrink-0`}>
+                            <AlertTriangle className={scheme.icon} size={24} />
+                        </div>
+                        <div className="flex-1">
+                            <h3 id="confirm-dialog-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                                {options.title}
+                            </h3>
+                            <p id="confirm-dialog-description" className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+                                {options.message}
+                            </p>
+                            <div className="flex gap-3 justify-end">
+                                <button
+                                    onClick={handleCancel}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                                >
+                                    {options.cancelText}
+                                </button>
+                                <button
+                                    onClick={handleConfirm}
+                                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${options.confirmButtonColor || 'bg-blue-600 hover:bg-blue-700'}`}
+                                >
+                                    {options.confirmText}
+                                </button>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleCancel}
+                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0"
+                            aria-label="Close dialog"
+                        >
+                            <X size={20} aria-hidden="true" />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+}
+
