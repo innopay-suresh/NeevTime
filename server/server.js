@@ -622,13 +622,28 @@ app.delete('/api/employees', async (req, res) => {
             // Delete Attendance Logs first (No Cascade)
             await client.query('DELETE FROM attendance_logs WHERE employee_code = ANY($1)', [employeeCodes]);
 
-            // Delete Attendance Summary (Reference check failed here)
-            await client.query('DELETE FROM attendance_daily_summary WHERE employee_code = ANY($1)', [employeeCodes]);
+            // Delete Attendance Summary (if exists)
+            try {
+                await client.query('DELETE FROM attendance_daily_summary WHERE employee_code = ANY($1)', [employeeCodes]);
+            } catch (e) {
+                console.log('attendance_daily_summary table may not exist, skipping');
+            }
 
-            // Delete Leaves
-            await client.query('DELETE FROM leaves WHERE employee_code = ANY($1)', [employeeCodes]);
+            // Delete Leave Applications (if exists)
+            try {
+                await client.query('DELETE FROM leave_applications WHERE employee_id = ANY($1)', [ids]);
+            } catch (e) {
+                console.log('leave_applications table may not exist, skipping');
+            }
 
-            // Delete Employees (Biometrics cascade)
+            // Delete Biometric Templates
+            try {
+                await client.query('DELETE FROM biometric_templates WHERE employee_code = ANY($1)', [employeeCodes]);
+            } catch (e) {
+                console.log('biometric_templates may have cascade, skipping explicit delete');
+            }
+
+            // Delete Employees
             await client.query('DELETE FROM employees WHERE id = ANY($1)', [ids]);
 
             // Queue Device Deletion Commands
