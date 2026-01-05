@@ -365,7 +365,7 @@ const runScheduledSync = async () => {
  */
 const syncAttendanceToHRMS = async (integration) => {
     try {
-        // Get unsynced attendance records (sync_status is boolean: false or null means not synced)
+        // Get unsynced attendance records (sync_status is VARCHAR: 'synced', 'pending', etc.)
         const result = await db.query(`
             SELECT 
                 al.*,
@@ -373,7 +373,7 @@ const syncAttendanceToHRMS = async (integration) => {
                 e.email
             FROM attendance_logs al
             LEFT JOIN employees e ON al.employee_code = e.employee_code
-            WHERE (al.sync_status IS NULL OR al.sync_status = false)
+            WHERE (al.sync_status IS NULL OR al.sync_status != 'synced')
             AND al.punch_time > NOW() - INTERVAL '7 days'
             ORDER BY al.punch_time
             LIMIT 500
