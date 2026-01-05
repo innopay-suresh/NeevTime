@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the enhanced UI component library for the HRNexa Attendance Management System.
+This document describes the enhanced UI component library for the NeevTime Attendance Management System.
 
 ## Quick Import
 
@@ -470,7 +470,7 @@ function MyComponent() {
 ```
 
 ### Available Theme Presets
-- **HRNexa Orange** (default) - `#F97316`
+- **NeevTime Orange** (default) - `#F97316`
 - **Ocean Blue** - `#3B82F6`
 - **Royal Purple** - `#8B5CF6`
 - **Forest Green** - `#22C55E`

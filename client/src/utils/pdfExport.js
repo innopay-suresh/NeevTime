@@ -18,7 +18,7 @@ import { autoTable } from 'jspdf-autotable';
 
 // Default company settings (can be overridden)
 const DEFAULT_COMPANY = {
-    name: 'HRNexa',
+    name: 'NeevTime',
     tagline: 'Attendance Management System',
     address: '',
     phone: '',
@@ -113,7 +113,7 @@ export const exportToPDF = (options) => {
     doc.setFontSize(18);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.text(company.name || 'HRNexa', margin, 12);
+    doc.text(company.name || 'NeevTime', margin, 12);
 
     // Tagline
     doc.setFontSize(9);
@@ -372,7 +372,7 @@ export const exportToPDF = (options) => {
                     doc.setFontSize(7);
                     doc.setTextColor(...COLORS.textMuted);
                     doc.setFont('helvetica', 'normal');
-                    doc.text(company.name || 'HRNexa', margin, footerY);
+                    doc.text(company.name || 'NeevTime', margin, footerY);
 
                     // Page numbers
                     if (showPageNumbers) {

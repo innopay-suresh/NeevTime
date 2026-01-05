@@ -18,7 +18,7 @@ import { Sun, Moon, Palette, Check, RotateCcw } from 'lucide-react';
 // Theme presets
 const THEME_PRESETS = {
     default: {
-        name: 'HRNexa Orange',
+        name: 'NeevTime Orange',
         primary: '#F97316',
         primaryDark: '#EA580C',
         primaryLight: '#FFEDD5',
