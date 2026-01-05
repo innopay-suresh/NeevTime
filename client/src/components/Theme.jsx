@@ -101,12 +101,7 @@ const ThemeContext = createContext(null);
  */
 export function ThemeProvider({ children }) {
     const [isDarkMode, setIsDarkMode] = useState(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('theme-dark-mode');
-            if (saved !== null) return JSON.parse(saved);
-            // Default to light mode to match hardcoded styles in other components
-            return false;
-        }
+        // FORCE LIGHT MODE: Ignore localStorage to fix UI contrast issues
         return false;
     });
 
