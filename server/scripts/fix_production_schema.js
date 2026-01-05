@@ -498,11 +498,16 @@ async function fixProductionSchema() {
             sync_leaves BOOLEAN DEFAULT TRUE,
             sync_interval_minutes INTEGER DEFAULT 30,
             last_sync_at TIMESTAMP,
+            last_sync_status VARCHAR(20),
+            last_sync_message TEXT,
             config JSONB,
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         )
     `, 'hrms_integrations table');
+
+    await runQuery(`ALTER TABLE hrms_integrations ADD COLUMN IF NOT EXISTS last_sync_status VARCHAR(20)`, 'hrms_integrations.last_sync_status');
+    await runQuery(`ALTER TABLE hrms_integrations ADD COLUMN IF NOT EXISTS last_sync_message TEXT`, 'hrms_integrations.last_sync_message');
 
     await runQuery(`
         CREATE TABLE IF NOT EXISTS integration_sync_logs (
