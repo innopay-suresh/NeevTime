@@ -130,9 +130,9 @@ class ERPNextIntegration extends BaseIntegration {
                     });
                 }
 
-                // Mark as synced (sync_status is boolean)
+                // Mark as synced (sync_status is VARCHAR)
                 await db.query(`
-                    UPDATE attendance_logs SET sync_status = true WHERE id = $1
+                    UPDATE attendance_logs SET sync_status = 'synced' WHERE id = $1
                 `, [record.id]);
 
                 stats.success++;
