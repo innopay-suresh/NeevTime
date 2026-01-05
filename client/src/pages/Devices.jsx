@@ -261,7 +261,7 @@ export default function Devices() {
     const [showSyncAllMenu, setShowSyncAllMenu] = useState(false);
     const [syncingAll, setSyncingAll] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-    const [confirmation, setConfirmation] = useState({ show: false, action: null, title: '', message: '' });
+    const [confirmation, setConfirmation] = useState({ show: false, action: null, title: '', message: '', target: null });
     const socketRef = useRef(null);
     const syncAllMenuRef = useRef(null);
     const transferMenuRef = useRef(null);
@@ -431,7 +431,7 @@ export default function Devices() {
         } catch (err) {
             showToast('Operation failed: ' + err.message, 'error');
         } finally {
-            setConfirmation({ show: false, action: null, title: '', message: '' });
+            setConfirmation({ show: false, action: null, title: '', message: '', target: null });
             fetchDevices();
         }
     };
