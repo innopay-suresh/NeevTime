@@ -92,6 +92,9 @@ class ERPNextIntegration extends BaseIntegration {
     /**
      * Push attendance to ERPNext
      */
+    /**
+     * Push attendance to ERPNext (Employee Checkin)
+     */
     async pushAttendance(records) {
         const stats = { processed: 0, success: 0, failed: 0 };
         const db = require('../../db');
@@ -99,38 +102,30 @@ class ERPNextIntegration extends BaseIntegration {
         for (const record of records) {
             stats.processed++;
             try {
-                // Format date for ERPNext
-                const attendanceDate = new Date(record.punch_time).toISOString().split('T')[0];
-
-                // Check if attendance already exists
-                const checkResponse = await this.client.get('/api/resource/Attendance', {
-                    params: {
-                        filters: JSON.stringify([
-                            ['employee', '=', record.employee_code],
-                            ['attendance_date', '=', attendanceDate]
-                        ])
-                    }
-                });
-
-                if (checkResponse.data.data.length > 0) {
-                    // Update existing
-                    const existingId = checkResponse.data.data[0].name;
-                    await this.client.put(`/api/resource/Attendance/${existingId}`, {
-                        status: 'Present',
-                        in_time: record.punch_state <= 1 ? record.punch_time : undefined,
-                        out_time: record.punch_state > 1 ? record.punch_time : undefined
-                    });
-                } else {
-                    // Create new attendance
-                    await this.client.post('/api/resource/Attendance', {
-                        employee: record.employee_code,
-                        employee_name: record.employee_name,
-                        attendance_date: attendanceDate,
-                        status: 'Present',
-                        in_time: record.punch_time,
-                        docstatus: 1  // Submit immediately
-                    });
+                // Determine Log Type (IN or OUT) from punch_state
+                // Standard ZK: 0=CheckIn, 1=CheckOut, 2=BreakOut, 3=BreakIn, 4=OT-In, 5=OT-Out
+                let logType = 'IN';
+                const state = parseInt(record.punch_state || 0);
+                if ([1, 2, 5].includes(state)) {
+                    logType = 'OUT';
                 }
+
+                // Format timestamp manually to preserve wall-clock time
+                // (Avoids timezone shifting issues if server/db mismatch)
+                const d = new Date(record.punch_time);
+                const timestamp = d.getFullYear() + "-" +
+                    ("0" + (d.getMonth() + 1)).slice(-2) + "-" +
+                    ("0" + d.getDate()).slice(-2) + " " +
+                    ("0" + d.getHours()).slice(-2) + ":" +
+                    ("0" + d.getMinutes()).slice(-2) + ":" +
+                    ("0" + d.getSeconds()).slice(-2);
+
+                await this.client.post('/api/resource/Employee%20Checkin', {
+                    employee: record.employee_code,
+                    time: timestamp,
+                    log_type: logType,
+                    device_id: record.device_id || 'MANUAL'
+                });
 
                 // Mark as synced (sync_status is VARCHAR)
                 await db.query(`
@@ -139,8 +134,19 @@ class ERPNextIntegration extends BaseIntegration {
 
                 stats.success++;
             } catch (err) {
-                stats.failed++;
-                console.error(`ERPNext attendance push failed for ${record.employee_code}:`, err.message);
+                // Check if duplicate (can happen on retry), consider success
+                const isDuplicate = err.response?.data?.exc &&
+                    (err.response.data.exc.includes('DuplicateEntryError') ||
+                        err.response.data.exc.includes('UniqueValidationError'));
+
+                if (isDuplicate) {
+                    await db.query(`UPDATE attendance_logs SET sync_status = 'synced' WHERE id = $1`, [record.id]);
+                    stats.success++;
+                } else {
+                    stats.failed++;
+                    const errorDetails = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+                    console.error(`ERPNext checkin push failed for ${record.employee_code}:`, errorDetails);
+                }
             }
         }
 
