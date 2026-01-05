@@ -83,7 +83,9 @@ class ERPNextIntegration extends BaseIntegration {
 
             return employees;
         } catch (err) {
-            throw new Error(`ERPNext pull employees failed: ${err.message}`);
+            const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+            console.error('ERPNext pull details:', detail);
+            throw new Error(`ERPNext pull employees failed: ${detail}`);
         }
     }
 
