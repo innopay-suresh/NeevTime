@@ -650,6 +650,36 @@ const handleAttendanceLogs = async (req, res, io) => {
                     // Better to await to ensure consistency, ADMS has high timeout.
                     await attendanceEngine.processDailyAttendance(userId, dateStr);
 
+                    // Real-time push to ERPNext (if configured)
+                    // This runs async in background to not delay ADMS response
+                    (async () => {
+                        try {
+                            const hrmsIntegration = require('./hrms-integration');
+                            const integrations = await hrmsIntegration.getActiveIntegrations();
+
+                            for (const integration of integrations) {
+                                if (integration.sync_attendance) {
+                                    const instance = await hrmsIntegration.getIntegrationInstance(integration.id);
+
+                                    // Push just this single record
+                                    const logRecord = {
+                                        id: null, // Will be fetched fresh
+                                        employee_code: userId,
+                                        punch_time: timestamp,
+                                        punch_state: finalState,
+                                        device_serial: SN
+                                    };
+
+                                    await instance.pushAttendance([logRecord]);
+                                    console.log(`[ADMS] Real-time push to ${integration.name} for ${userId}`);
+                                }
+                            }
+                        } catch (pushErr) {
+                            // Don't fail the log insertion if push fails
+                            console.log(`[ADMS] Real-time ERPNext push skipped: ${pushErr.message}`);
+                        }
+                    })();
+
                 } catch (e) {
                     console.error('Log Insert Error:', e.message);
                     debugLog(`ERROR inserting log: ${e.message}`);

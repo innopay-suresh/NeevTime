@@ -1326,4 +1326,13 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`ADMS Endpoint: http://0.0.0.0:${PORT}/iclock/cdata`);
+
+    // Start HRMS scheduled sync (pushes attendance to ERPNext every 5 minutes)
+    try {
+        const hrmsIntegration = require('./services/hrms-integration');
+        hrmsIntegration.startScheduledSync();
+        console.log('HRMS Scheduled Sync: Started (every 5 minutes)');
+    } catch (err) {
+        console.log('HRMS Scheduled Sync: Not available -', err.message);
+    }
 });
