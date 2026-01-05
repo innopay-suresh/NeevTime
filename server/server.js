@@ -637,7 +637,7 @@ app.delete('/api/employees', async (req, res) => {
 
             // Delete Leave Applications (if exists)
             try {
-                await client.query('DELETE FROM leave_applications WHERE employee_id = ANY($1)', [ids]);
+                await client.query('DELETE FROM leave_applications WHERE employee_code = ANY($1)', [employeeCodes]);
                 console.log('[DELETE] Leave applications deleted');
             } catch (e) {
                 console.log('[DELETE] leave_applications error:', e.message);
