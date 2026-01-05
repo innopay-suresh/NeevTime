@@ -785,13 +785,21 @@ app.get('/api/devices', async (req, res) => {
             ORDER BY d.last_activity DESC
         `);
 
-        // Add universal biometric counts to each device
-        const devicesWithStats = result.rows.map(device => ({
-            ...device,
-            user_count: parseInt(bioStats.user_count) || 0,
-            fingerprint_count: parseInt(bioStats.fingerprint_count) || 0,
-            face_count: parseInt(bioStats.face_count) || 0
-        }));
+        // Add universal biometric counts to each device and calculate real-time status
+        const devicesWithStats = result.rows.map(device => {
+            // Calculate online status based on last_activity (offline if > 5 minutes ago)
+            const lastActivity = device.last_activity ? new Date(device.last_activity) : null;
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+            const isOnline = lastActivity && lastActivity > fiveMinutesAgo;
+
+            return {
+                ...device,
+                status: isOnline ? 'online' : 'offline',
+                user_count: parseInt(bioStats.user_count) || 0,
+                fingerprint_count: parseInt(bioStats.fingerprint_count) || 0,
+                face_count: parseInt(bioStats.face_count) || 0
+            };
+        });
 
         res.json(devicesWithStats);
     } catch (err) {
