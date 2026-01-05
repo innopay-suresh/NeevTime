@@ -107,7 +107,7 @@ router.put('/integrations/:id', async (req, res) => {
                 name = COALESCE($2, name),
                 type = COALESCE($3, type),
                 base_url = COALESCE($4, base_url),
-                api_key = CASE WHEN $5 = '****' THEN api_key ELSE COALESCE($5, api_key) END,
+                api_key = CASE WHEN $5 LIKE '***%' OR $5 = '****' THEN api_key ELSE COALESCE($5, api_key) END,
                 api_secret = CASE WHEN $6 = '****' THEN api_secret ELSE COALESCE($6, api_secret) END,
                 username = COALESCE($7, username),
                 password = CASE WHEN $8 = '****' THEN password ELSE COALESCE($8, password) END,
@@ -162,8 +162,8 @@ router.post('/integrations/:id/test', async (req, res) => {
         res.json(result);
     } catch (err) {
         console.error('Integration test error:', err);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             error: err.message,
             stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
         });
@@ -221,8 +221,8 @@ router.post('/integrations/:id/sync/full', async (req, res) => {
         res.json({ success: true, results });
     } catch (err) {
         console.error('Full sync error:', err);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             error: err.message,
             stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
         });
