@@ -1,13 +1,30 @@
 -- Database Schema for Attendance Management System
 
+-- Areas
+CREATE TABLE IF NOT EXISTS areas (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) UNIQUE NOT NULL,
+    code VARCHAR(50),
+    parent_area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Devices Table: Tracks physical biometric devices
 CREATE TABLE IF NOT EXISTS devices (
     serial_number VARCHAR(50) PRIMARY KEY,
     device_name VARCHAR(100),
     ip_address VARCHAR(45),
-    port INTEGER,
+    port INTEGER DEFAULT 4370,
     status VARCHAR(20) DEFAULT 'offline', -- 'online', 'offline'
     last_activity TIMESTAMP DEFAULT NOW(),
+    area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL,
+    transfer_mode VARCHAR(50) DEFAULT 'realtime',
+    timezone VARCHAR(50) DEFAULT 'Etc/GMT+5:30',
+    is_registration_device BOOLEAN DEFAULT TRUE,
+    is_attendance_device BOOLEAN DEFAULT TRUE,
+    connection_interval INTEGER DEFAULT 10,
+    device_direction VARCHAR(20) DEFAULT 'both', -- 'in', 'out', 'both'
+    enable_access_control BOOLEAN DEFAULT FALSE,
     firmware_version VARCHAR(50),
     user_count INTEGER DEFAULT 0,
     fingerprint_count INTEGER DEFAULT 0,
@@ -120,14 +137,7 @@ CREATE TABLE IF NOT EXISTS employee_shifts (
 -- Seed Default Admin (password: admin123)
 -- ================= PHASE 2.1: PERSONNEL EXPANSION =================
 
--- Areas
-CREATE TABLE IF NOT EXISTS areas (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) UNIQUE NOT NULL,
-    code VARCHAR(50),
-    parent_area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-);
+
 
 -- Holiday Locations
 CREATE TABLE IF NOT EXISTS holiday_locations (

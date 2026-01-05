@@ -15,5 +15,5 @@ COPY . .
 # Expose the API port and ADMS port
 EXPOSE 3001
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application with schema migration
+CMD ["sh", "-c", "node scripts/fix_production_schema.js && npm start"]
