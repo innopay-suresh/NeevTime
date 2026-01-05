@@ -581,8 +581,30 @@ const handleAttendanceLogs = async (req, res, io) => {
         for (const line of lines) {
             // Format: ID \t Time \t State \t VerifyMode ...
             // Example: 1	2023-10-25 09:00:00	0	1	0	0
-            const parts = line.split('\t');
-            debugLog(`Line: ${line} | Parts: ${parts.length}`);
+            // Some devices use spaces: 1 2023-10-25 09:00:00 0 1 0 0
+
+            let parts = line.split('\t');
+            // If tab split failed (single part), try space split
+            if (parts.length < 2) {
+                // Careful not to split timestamp spaces "2023-10-25 09:00:00"
+                // Match standard ADMS log format: ID Time State Verify WorkCode
+                // Regex matches: ID, Date Time, State, Verify, WorkCode
+                const match = line.match(/^(\S+)\s+([\d-]+\s[\d:]+)\s+(\d+)\s+(\d+)\s+(\d+)/);
+                if (match) {
+                    parts = [match[1], match[2], match[3], match[4], match[5]];
+                } else {
+                    // Fallback to simple space split (risky for timestamps)
+                    parts = line.split(/\s+/);
+                    // Join date and time if separated
+                    if (parts.length >= 6) {
+                        // ID Date Time Status Verify ...
+                        // Make parts: ID, "Date Time", Status, Verify ...
+                        parts = [parts[0], parts[1] + ' ' + parts[2], parts[3], parts[4], parts[5]];
+                    }
+                }
+            }
+
+            debugLog(`Line: ${line} | Parts: ${parts.length} | Raw: ${JSON.stringify(parts)}`);
 
             if (parts.length >= 2) {
                 const [userId, timestamp, state, verifyMode, workCode] = parts;
