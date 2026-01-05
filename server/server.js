@@ -620,42 +620,74 @@ app.delete('/api/employees', async (req, res) => {
             await client.query('BEGIN');
 
             // Delete Attendance Logs first (No Cascade)
-            await client.query('DELETE FROM attendance_logs WHERE employee_code = ANY($1)', [employeeCodes]);
+            try {
+                await client.query('DELETE FROM attendance_logs WHERE employee_code = ANY($1)', [employeeCodes]);
+                console.log('[DELETE] Attendance logs deleted');
+            } catch (e) {
+                console.log('[DELETE] attendance_logs error:', e.message);
+            }
 
             // Delete Attendance Summary (if exists)
             try {
                 await client.query('DELETE FROM attendance_daily_summary WHERE employee_code = ANY($1)', [employeeCodes]);
+                console.log('[DELETE] Attendance summary deleted');
             } catch (e) {
-                console.log('attendance_daily_summary table may not exist, skipping');
+                console.log('[DELETE] attendance_daily_summary error:', e.message);
             }
 
             // Delete Leave Applications (if exists)
             try {
                 await client.query('DELETE FROM leave_applications WHERE employee_id = ANY($1)', [ids]);
+                console.log('[DELETE] Leave applications deleted');
             } catch (e) {
-                console.log('leave_applications table may not exist, skipping');
+                console.log('[DELETE] leave_applications error:', e.message);
             }
 
             // Delete Biometric Templates
             try {
                 await client.query('DELETE FROM biometric_templates WHERE employee_code = ANY($1)', [employeeCodes]);
+                console.log('[DELETE] Biometric templates deleted');
             } catch (e) {
-                console.log('biometric_templates may have cascade, skipping explicit delete');
+                console.log('[DELETE] biometric_templates error:', e.message);
+            }
+
+            // Delete Leave Balances (if exists)
+            try {
+                await client.query('DELETE FROM leave_balances WHERE employee_code = ANY($1)', [employeeCodes]);
+                console.log('[DELETE] Leave balances deleted');
+            } catch (e) {
+                console.log('[DELETE] leave_balances error:', e.message);
+            }
+
+            // Delete Employee Docs (if exists)
+            try {
+                await client.query('DELETE FROM employee_docs WHERE employee_code = ANY($1)', [employeeCodes]);
+                console.log('[DELETE] Employee docs deleted');
+            } catch (e) {
+                console.log('[DELETE] employee_docs error:', e.message);
             }
 
             // Delete Employees
             await client.query('DELETE FROM employees WHERE id = ANY($1)', [ids]);
+            console.log('[DELETE] Employees deleted:', ids);
 
             // Queue Device Deletion Commands
-            const devices = await client.query('SELECT serial_number FROM devices');
-            for (const code of employeeCodes) {
-                const cmd = `DATA DELETE USER PIN=${code}`;
-                for (const dev of devices.rows) {
-                    await client.query(
-                        `INSERT INTO device_commands (device_serial, command, status) VALUES ($1, $2, 'pending')`,
-                        [dev.serial_number, cmd]
-                    );
+            try {
+                const devices = await client.query('SELECT serial_number FROM devices WHERE serial_number IS NOT NULL AND serial_number != \'\'');
+                for (const code of employeeCodes) {
+                    const cmd = `DATA DELETE USER PIN=${code}`;
+                    for (const dev of devices.rows) {
+                        if (dev.serial_number) {
+                            await client.query(
+                                `INSERT INTO device_commands (device_serial, command, status) VALUES ($1, $2, 'pending')`,
+                                [dev.serial_number, cmd]
+                            );
+                        }
+                    }
                 }
+                console.log('[DELETE] Device commands queued');
+            } catch (e) {
+                console.log('[DELETE] device_commands error:', e.message);
             }
 
             await client.query('COMMIT');
