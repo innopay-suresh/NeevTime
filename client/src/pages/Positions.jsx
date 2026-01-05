@@ -1,18 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import api from '../api';
-import { Briefcase, Plus, Trash2, Edit2, Search, RefreshCw, X, Save } from 'lucide-react';
+import { Briefcase, Plus, Trash2, Edit2, Search, RefreshCw, X, Save, Download, Upload, FileText, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
 import SkeletonLoader from '../components/SkeletonLoader';
+import { exportToExcel, exportToCSV } from '../utils/excelExport';
 
 export default function Positions() {
     const [positions, setPositions] = useState([]);
     const [filteredPositions, setFilteredPositions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
     const [editItem, setEditItem] = useState(null);
     const [formData, setFormData] = useState({ name: '', description: '' });
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIds, setSelectedIds] = useState([]);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
+    const [importing, setImporting] = useState(false);
+    const [importResult, setImportResult] = useState(null);
+    const fileInputRef = useRef(null);
 
     const fetchPositions = async () => {
         try {
@@ -114,6 +119,94 @@ export default function Positions() {
         setFormData({ name: '', description: '' });
     };
 
+    // Export functions
+    const handleExportCSV = async () => {
+        await exportToCSV({
+            data: positions.map(p => ({ id: p.id, name: p.name, description: p.description || '' })),
+            filename: `positions_${new Date().toISOString().split('T')[0]}`,
+            headers: [
+                { key: 'id', label: 'ID' },
+                { key: 'name', label: 'Position Name' },
+                { key: 'description', label: 'Description' }
+            ]
+        });
+    };
+
+    const handleExportExcel = async () => {
+        await exportToExcel({
+            data: positions.map(p => ({ id: p.id, name: p.name, description: p.description || '' })),
+            filename: `positions_${new Date().toISOString().split('T')[0]}`,
+            sheetName: 'Positions',
+            headers: [
+                { key: 'id', label: 'ID' },
+                { key: 'name', label: 'Position Name' },
+                { key: 'description', label: 'Description' }
+            ]
+        });
+    };
+
+    const downloadTemplate = () => {
+        const template = 'name,description\nSoftware Engineer,Develops software applications\nProject Manager,Manages project timelines\nHR Manager,Handles human resources';
+        const blob = new Blob([template], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'positions_template.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImport = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImporting(true);
+        setImportResult(null);
+
+        try {
+            const text = await file.text();
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+            // Skip header if present
+            const startIndex = lines[0].toLowerCase().includes('name') ? 1 : 0;
+            const dataLines = lines.slice(startIndex);
+
+            let success = 0;
+            let failed = 0;
+            const errors = [];
+
+            for (const line of dataLines) {
+                try {
+                    // Parse CSV - handle quoted fields
+                    const parts = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [line];
+                    const name = (parts[0] || '').replace(/^"|"$/g, '').trim();
+                    const description = (parts[1] || '').replace(/^"|"$/g, '').trim();
+
+                    if (!name) continue;
+
+                    await api.post('/api/positions', { name, description });
+                    success++;
+                } catch (err) {
+                    failed++;
+                    errors.push(`${line.substring(0, 30)}: ${err.response?.data?.error || err.message}`);
+                }
+            }
+
+            setImportResult({ success, failed, errors });
+            fetchPositions();
+        } catch (err) {
+            setImportResult({ success: 0, failed: 1, errors: [err.message] });
+        } finally {
+            setImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const closeImportModal = () => {
+        setShowImportModal(false);
+        setImportResult(null);
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -149,6 +242,34 @@ export default function Positions() {
                     <RefreshCw size={14} /> Refresh
                 </button>
 
+                {/* Separator */}
+                <div className="w-px h-6 bg-gray-300 mx-1" />
+
+                {/* Export Buttons */}
+                <button
+                    type="button"
+                    onClick={handleExportCSV}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded hover:bg-emerald-100 transition-colors"
+                >
+                    <FileText size={14} /> Export CSV
+                </button>
+                <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+                >
+                    <FileSpreadsheet size={14} /> Export Excel
+                </button>
+
+                {/* Import Button */}
+                <button
+                    type="button"
+                    onClick={() => setShowImportModal(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded hover:bg-purple-100 transition-colors"
+                >
+                    <Upload size={14} /> Import
+                </button>
+
                 <div className="ml-auto w-64 relative">
                     <input
                         type="text"
@@ -165,69 +286,69 @@ export default function Positions() {
             {loading ? (
                 <SkeletonLoader rows={8} columns={5} showHeader={true} />
             ) : (
-            <div className="card-base overflow-hidden p-0">
-                <table className="w-full">
-                    <thead>
-                        <tr>
-                            <th className="table-header w-8">
-                                <input
-                                    type="checkbox"
-                                    onChange={(e) => setSelectedIds(e.target.checked ? filteredPositions.map(p => p.id) : [])}
-                                    checked={filteredPositions.length > 0 && selectedIds.length === filteredPositions.length}
-                                />
-                            </th>
-                            <th className="table-header">ID</th>
-                            <th className="table-header">Position Name</th>
-                            <th className="table-header">Description</th>
-                            <th className="table-header text-center sticky-action">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredPositions.length === 0 ? (
+                <div className="card-base overflow-hidden p-0">
+                    <table className="w-full">
+                        <thead>
                             <tr>
-                                <td colSpan="5" className="px-6 py-8 text-center" style={{ color: '#64748B' }}>
-                                    No positions found.
-                                </td>
+                                <th className="table-header w-8">
+                                    <input
+                                        type="checkbox"
+                                        onChange={(e) => setSelectedIds(e.target.checked ? filteredPositions.map(p => p.id) : [])}
+                                        checked={filteredPositions.length > 0 && selectedIds.length === filteredPositions.length}
+                                    />
+                                </th>
+                                <th className="table-header">ID</th>
+                                <th className="table-header">Position Name</th>
+                                <th className="table-header">Description</th>
+                                <th className="table-header text-center sticky-action">Actions</th>
                             </tr>
-                        ) : (
-                            filteredPositions.map((pos) => (
-                                <tr key={pos.id} className="table-row">
-                                    <td className="px-6 py-4">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedIds.includes(pos.id)}
-                                            onChange={() => toggleSelect(pos.id)}
-                                        />
-                                    </td>
-                                    <td className="px-6 py-4" style={{ color: '#64748B' }}>#{pos.id}</td>
-                                    <td className="px-6 py-4 font-semibold" style={{ color: '#1E293B', fontWeight: 600 }}>{pos.name}</td>
-                                    <td className="px-6 py-4" style={{ color: '#475569' }}>{pos.description || '-'}</td>
-                                    <td className="px-6 py-4 sticky-action">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => handleEdit(pos)}
-                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                style={{ transition: 'all 200ms cubic-bezier(0.25, 0.8, 0.25, 1)' }}
-                                            >
-                                                <Edit2 size={16} />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={(e) => handleDelete(e, pos.id)}
-                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                style={{ transition: 'all 200ms cubic-bezier(0.25, 0.8, 0.25, 1)' }}
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
+                        </thead>
+                        <tbody>
+                            {filteredPositions.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-8 text-center" style={{ color: '#64748B' }}>
+                                        No positions found.
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                            ) : (
+                                filteredPositions.map((pos) => (
+                                    <tr key={pos.id} className="table-row">
+                                        <td className="px-6 py-4">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.includes(pos.id)}
+                                                onChange={() => toggleSelect(pos.id)}
+                                            />
+                                        </td>
+                                        <td className="px-6 py-4" style={{ color: '#64748B' }}>#{pos.id}</td>
+                                        <td className="px-6 py-4 font-semibold" style={{ color: '#1E293B', fontWeight: 600 }}>{pos.name}</td>
+                                        <td className="px-6 py-4" style={{ color: '#475569' }}>{pos.description || '-'}</td>
+                                        <td className="px-6 py-4 sticky-action">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleEdit(pos)}
+                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    style={{ transition: 'all 200ms cubic-bezier(0.25, 0.8, 0.25, 1)' }}
+                                                >
+                                                    <Edit2 size={16} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handleDelete(e, pos.id)}
+                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                    style={{ transition: 'all 200ms cubic-bezier(0.25, 0.8, 0.25, 1)' }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             )}
 
             {/* Add/Edit Modal */}
@@ -316,6 +437,103 @@ export default function Positions() {
                                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                                 >
                                     Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Import Modal */}
+            {showImportModal && (
+                <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onClick={closeImportModal}>
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-white/50" style={{ borderRadius: '16px' }} onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-4 border-b">
+                            <h2 className="text-lg font-semibold" style={{ color: '#1E293B', fontWeight: 600 }}>
+                                Import Positions
+                            </h2>
+                            <button
+                                type="button"
+                                onClick={closeImportModal}
+                                className="p-2 hover:bg-gray-100 rounded-lg"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-gray-600">
+                                Upload a CSV file with position names and descriptions. Format: name,description
+                            </p>
+
+                            {/* Download Template */}
+                            <button
+                                type="button"
+                                onClick={downloadTemplate}
+                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+                            >
+                                <Download size={14} /> Download CSV Template
+                            </button>
+
+                            {/* File Input */}
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".csv,.txt"
+                                    onChange={handleImport}
+                                    className="hidden"
+                                    id="import-positions-file"
+                                />
+                                <label
+                                    htmlFor="import-positions-file"
+                                    className="cursor-pointer flex flex-col items-center gap-2"
+                                >
+                                    <Upload size={32} className="text-gray-400" />
+                                    <span className="text-sm text-gray-600">
+                                        {importing ? 'Importing...' : 'Click to select CSV file'}
+                                    </span>
+                                </label>
+                            </div>
+
+                            {/* Import Result */}
+                            {importResult && (
+                                <div className={`p-4 rounded-lg ${importResult.failed > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+                                    <div className="flex items-start gap-3">
+                                        {importResult.failed > 0 ? (
+                                            <AlertCircle size={20} className="text-amber-600 mt-0.5" />
+                                        ) : (
+                                            <CheckCircle size={20} className="text-green-600 mt-0.5" />
+                                        )}
+                                        <div>
+                                            <p className="font-medium text-gray-800">
+                                                Import Complete
+                                            </p>
+                                            <p className="text-sm text-gray-600 mt-1">
+                                                {importResult.success} imported successfully
+                                                {importResult.failed > 0 && `, ${importResult.failed} failed`}
+                                            </p>
+                                            {importResult.errors.length > 0 && (
+                                                <ul className="text-xs text-red-600 mt-2 list-disc list-inside">
+                                                    {importResult.errors.slice(0, 5).map((err, i) => (
+                                                        <li key={i}>{err}</li>
+                                                    ))}
+                                                    {importResult.errors.length > 5 && (
+                                                        <li>...and {importResult.errors.length - 5} more errors</li>
+                                                    )}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end pt-4 border-t">
+                                <button
+                                    type="button"
+                                    onClick={closeImportModal}
+                                    className="btn-secondary rounded-full"
+                                >
+                                    Close
                                 </button>
                             </div>
                         </div>
