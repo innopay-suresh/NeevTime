@@ -290,7 +290,7 @@ export default function Area() {
                     {/* Table */}
                     <div className="flex-1 overflow-auto custom-scrollbar">
                         <table className="w-full text-left">
-                            <thead className="bg-orange-50/50 border-b border-orange-100 sticky top-0 z-10">
+                            <thead className="bg-orange-50 border-b border-orange-100 sticky top-0 z-10">
                                 <tr>
                                     <th className="px-6 py-4 w-16">
                                         <input type="checkbox" checked={selectedRows.length === tableData.length && tableData.length > 0} onChange={toggleAllRows} className="rounded text-saffron focus:ring-saffron" />
@@ -314,7 +314,7 @@ export default function Area() {
                                     </tr>
                                 ) : (
                                     tableData.map(area => (
-                                        <tr key={area.id} className={`hover:bg-cream-50 transition-colors ${selectedRows.includes(area.id) ? 'bg-orange-50/30' : ''}`}>
+                                        <tr key={area.id} className={`bg-white hover:bg-cream-50 transition-colors ${selectedRows.includes(area.id) ? 'bg-orange-50/30' : ''}`}>
                                             <td className="px-6 py-4">
                                                 <input type="checkbox" checked={selectedRows.includes(area.id)} onChange={() => toggleRowSelection(area.id)} className="rounded text-saffron focus:ring-saffron" />
                                             </td>

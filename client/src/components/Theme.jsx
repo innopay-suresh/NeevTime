@@ -104,7 +104,8 @@ export function ThemeProvider({ children }) {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('theme-dark-mode');
             if (saved !== null) return JSON.parse(saved);
-            return window.matchMedia('(prefers-color-scheme: dark)').matches;
+            // Default to light mode to match hardcoded styles in other components
+            return false;
         }
         return false;
     });
