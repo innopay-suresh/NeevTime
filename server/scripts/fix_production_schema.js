@@ -9,9 +9,9 @@
 
 const db = require('../db');
 
-async function runQuery(query, description) {
+async function runQuery(query, description, params = []) {
     try {
-        await db.query(query);
+        await db.query(query, params);
         console.log(`  ✅ ${description}`);
         return true;
     } catch (err) {
@@ -21,6 +21,11 @@ async function runQuery(query, description) {
         }
         if (err.code === '42P07') {
             console.log(`  ⏭️  ${description} (table already exists)`);
+            return true;
+        }
+        if (err.code === '23505') {
+            // Unique violation - setting already exists, that's fine
+            console.log(`  ⏭️  ${description} (already exists)`);
             return true;
         }
         console.error(`  ❌ ${description}: ${err.message}`);
@@ -607,6 +612,104 @@ async function fixProductionSchema() {
             UNIQUE(category, setting_key)
         )
     `, 'app_settings table');
+
+    // Seed default settings if empty
+    console.log('  📝 Seeding default settings...');
+
+    const defaultSettings = [
+        // Company Settings
+        { category: 'company', key: 'company_name', value: 'Your Company Name', type: 'string', desc: 'Official company name' },
+        { category: 'company', key: 'company_address', value: '', type: 'string', desc: 'Company address' },
+        { category: 'company', key: 'company_email', value: '', type: 'string', desc: 'Company email address' },
+        { category: 'company', key: 'company_phone', value: '', type: 'string', desc: 'Company phone number' },
+        { category: 'company', key: 'company_website', value: '', type: 'string', desc: 'Company website URL' },
+        { category: 'company', key: 'company_city', value: '', type: 'string', desc: 'City' },
+        { category: 'company', key: 'company_state', value: '', type: 'string', desc: 'State/Province' },
+        { category: 'company', key: 'company_country', value: 'India', type: 'string', desc: 'Country' },
+        { category: 'company', key: 'company_pincode', value: '', type: 'string', desc: 'Postal/ZIP code' },
+
+        // Attendance Rules
+        { category: 'attendance', key: 'grace_period_minutes', value: '15', type: 'number', desc: 'Grace period (minutes) before marking as late' },
+        { category: 'attendance', key: 'half_day_threshold_hours', value: '4', type: 'number', desc: 'Minimum hours for half-day attendance' },
+        { category: 'attendance', key: 'full_day_threshold_hours', value: '8', type: 'number', desc: 'Minimum hours for full-day attendance' },
+        { category: 'attendance', key: 'overtime_start_after_hours', value: '9', type: 'number', desc: 'Hours after which overtime starts' },
+        { category: 'attendance', key: 'auto_punch_out_enabled', value: 'false', type: 'boolean', desc: 'Automatically punch out at end of day' },
+        { category: 'attendance', key: 'auto_punch_out_time', value: '23:59', type: 'string', desc: 'Time for automatic punch out' },
+        { category: 'attendance', key: 'minimum_break_minutes', value: '30', type: 'number', desc: 'Minimum break duration in minutes' },
+        { category: 'attendance', key: 'allow_multiple_punches', value: 'true', type: 'boolean', desc: 'Allow multiple IN/OUT punches per day' },
+
+        // Weekend Rules
+        { category: 'weekend', key: 'weekend_days', value: '["Saturday", "Sunday"]', type: 'json', desc: 'Days considered as weekend' },
+        { category: 'weekend', key: 'first_saturday_off', value: 'false', type: 'boolean', desc: 'First Saturday of month is off' },
+        { category: 'weekend', key: 'second_saturday_off', value: 'true', type: 'boolean', desc: 'Second Saturday of month is off' },
+        { category: 'weekend', key: 'third_saturday_off', value: 'false', type: 'boolean', desc: 'Third Saturday of month is off' },
+        { category: 'weekend', key: 'fourth_saturday_off', value: 'true', type: 'boolean', desc: 'Fourth Saturday of month is off' },
+        { category: 'weekend', key: 'fifth_saturday_off', value: 'false', type: 'boolean', desc: 'Fifth Saturday of month is off (if exists)' },
+        { category: 'weekend', key: 'all_sundays_off', value: 'true', type: 'boolean', desc: 'All Sundays are off' },
+
+        // Email/SMTP Settings
+        { category: 'notifications', key: 'smtp_host', value: '', type: 'string', desc: 'SMTP server hostname' },
+        { category: 'notifications', key: 'smtp_port', value: '587', type: 'number', desc: 'SMTP server port' },
+        { category: 'notifications', key: 'smtp_username', value: '', type: 'string', desc: 'SMTP username' },
+        { category: 'notifications', key: 'smtp_password', value: '', type: 'string', desc: 'SMTP password' },
+        { category: 'notifications', key: 'smtp_from_email', value: '', type: 'string', desc: 'From email address' },
+        { category: 'notifications', key: 'smtp_from_name', value: 'NeevTime', type: 'string', desc: 'From name in emails' },
+        { category: 'notifications', key: 'smtp_secure', value: 'true', type: 'boolean', desc: 'Use TLS/SSL for SMTP' },
+        { category: 'notifications', key: 'email_notifications_enabled', value: 'true', type: 'boolean', desc: 'Enable email notifications' },
+
+        // Security Settings
+        { category: 'security', key: 'session_timeout_minutes', value: '480', type: 'number', desc: 'Session timeout in minutes (default 8 hours)' },
+        { category: 'security', key: 'max_login_attempts', value: '5', type: 'number', desc: 'Maximum failed login attempts before lockout' },
+        { category: 'security', key: 'lockout_duration_minutes', value: '30', type: 'number', desc: 'Account lockout duration in minutes' },
+        { category: 'security', key: 'password_min_length', value: '8', type: 'number', desc: 'Minimum password length' },
+        { category: 'security', key: 'require_special_char', value: 'true', type: 'boolean', desc: 'Require special character in password' },
+        { category: 'security', key: 'two_factor_enabled', value: 'false', type: 'boolean', desc: 'Enable two-factor authentication' },
+        { category: 'security', key: 'force_password_change_days', value: '90', type: 'number', desc: 'Force password change after N days (0 = disabled)' },
+
+        // WhatsApp Settings
+        { category: 'whatsapp', key: 'whatsapp_enabled', value: 'false', type: 'boolean', desc: 'Enable WhatsApp notifications' },
+        { category: 'whatsapp', key: 'whatsapp_api_url', value: '', type: 'string', desc: 'WhatsApp Business API URL' },
+        { category: 'whatsapp', key: 'whatsapp_api_key', value: '', type: 'string', desc: 'WhatsApp API key' },
+        { category: 'whatsapp', key: 'whatsapp_sender_number', value: '', type: 'string', desc: 'WhatsApp sender phone number' },
+        { category: 'whatsapp', key: 'whatsapp_late_alert', value: 'true', type: 'boolean', desc: 'Send WhatsApp alert for late arrivals' },
+        { category: 'whatsapp', key: 'whatsapp_absent_alert', value: 'true', type: 'boolean', desc: 'Send WhatsApp alert for absences' },
+
+        // SMS Settings
+        { category: 'sms', key: 'sms_enabled', value: 'false', type: 'boolean', desc: 'Enable SMS notifications' },
+        { category: 'sms', key: 'sms_provider', value: 'twilio', type: 'string', desc: 'SMS provider (twilio, msg91, textlocal)' },
+        { category: 'sms', key: 'sms_api_key', value: '', type: 'string', desc: 'SMS provider API key' },
+        { category: 'sms', key: 'sms_api_secret', value: '', type: 'string', desc: 'SMS provider API secret' },
+        { category: 'sms', key: 'sms_sender_id', value: 'NEEVTM', type: 'string', desc: 'SMS sender ID' },
+        { category: 'sms', key: 'sms_late_alert', value: 'false', type: 'boolean', desc: 'Send SMS alert for late arrivals' },
+        { category: 'sms', key: 'sms_absent_alert', value: 'false', type: 'boolean', desc: 'Send SMS alert for absences' },
+
+        // Auto Reports Settings
+        { category: 'reports', key: 'auto_daily_report_enabled', value: 'false', type: 'boolean', desc: 'Send daily attendance report automatically' },
+        { category: 'reports', key: 'daily_report_time', value: '18:00', type: 'string', desc: 'Time to send daily report (HH:MM)' },
+        { category: 'reports', key: 'daily_report_recipients', value: '', type: 'string', desc: 'Email addresses for daily report (comma-separated)' },
+        { category: 'reports', key: 'auto_weekly_report_enabled', value: 'false', type: 'boolean', desc: 'Send weekly attendance report automatically' },
+        { category: 'reports', key: 'weekly_report_day', value: 'Monday', type: 'string', desc: 'Day to send weekly report' },
+        { category: 'reports', key: 'weekly_report_recipients', value: '', type: 'string', desc: 'Email addresses for weekly report (comma-separated)' },
+        { category: 'reports', key: 'auto_monthly_report_enabled', value: 'false', type: 'boolean', desc: 'Send monthly attendance report automatically' },
+        { category: 'reports', key: 'monthly_report_recipients', value: '', type: 'string', desc: 'Email addresses for monthly report (comma-separated)' },
+
+        // PDF Settings
+        { category: 'pdf', key: 'pdf_header_text', value: 'Attendance Report', type: 'string', desc: 'Header text for PDF reports' },
+        { category: 'pdf', key: 'pdf_footer_text', value: 'Generated by NeevTime', type: 'string', desc: 'Footer text for PDF reports' },
+        { category: 'pdf', key: 'pdf_show_logo', value: 'true', type: 'boolean', desc: 'Show company logo in PDF' },
+        { category: 'pdf', key: 'pdf_orientation', value: 'portrait', type: 'string', desc: 'PDF page orientation (portrait/landscape)' },
+        { category: 'pdf', key: 'pdf_page_size', value: 'A4', type: 'string', desc: 'PDF page size (A4, Letter, Legal)' },
+        { category: 'pdf', key: 'pdf_include_summary', value: 'true', type: 'boolean', desc: 'Include summary section in PDF' },
+        { category: 'pdf', key: 'pdf_include_signature_line', value: 'false', type: 'boolean', desc: 'Include signature line in PDF' },
+    ];
+
+    for (const setting of defaultSettings) {
+        await runQuery(`
+            INSERT INTO app_settings (category, setting_key, setting_value, data_type, description)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (category, setting_key) DO NOTHING
+        `, `  ✅ ${setting.category}.${setting.key}`, [setting.category, setting.key, setting.value, setting.type, setting.desc]);
+    }
 
     // ==========================================
     // 11. SCHEDULING TABLES
