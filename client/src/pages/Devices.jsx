@@ -408,13 +408,20 @@ export default function Devices() {
     };
 
     const handleDelete = (serial) => {
+        console.log('[Devices] handleDelete called with serial:', serial);
         setConfirmation({ show: true, action: 'delete', title: 'Remove Device', message: 'Irreversible action.', target: serial });
     };
 
     const processDataTransfer = async () => {
         const { action, target } = confirmation;
+        console.log('[Devices] processDataTransfer:', { action, target, confirmation });
+
         try {
             if (action === 'delete') {
+                if (!target) {
+                    showToast('Error: No device selected for deletion', 'error');
+                    return;
+                }
                 await api.delete(`/api/devices/${target}`);
                 showToast('Device deleted successfully', 'success');
             } else {
