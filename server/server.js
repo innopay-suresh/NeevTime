@@ -341,6 +341,10 @@ const reportsRouter = require('./routes/reports');
 app.use('/api/reports', authenticateToken, reportsRouter);
 
 
+// Mobile Attendance Routes (Phase 3)
+const mobileAttendanceRouter = require('./routes/mobile_attendance');
+app.use('/api/mobile', authenticateToken, mobileAttendanceRouter);
+
 // ================= ADMS Routes =================
 // These are called by the biometric devices
 // Support both standard and .aspx paths (common in some firmwares)

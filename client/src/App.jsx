@@ -44,6 +44,8 @@ import DatabaseTools from './pages/DatabaseTools';
 import DeviceData from './pages/DeviceData';
 import Integrations from './pages/Integrations';
 import AdvancedReports from './pages/AdvancedReports';
+import Geofences from './pages/Geofences';
+import MobilePunch from './pages/MobilePunch';
 
 // Legacy Toast (for backward compatibility)
 import ToastContainer from './components/ToastContainer';
@@ -186,6 +188,7 @@ function MainLayout({ auth, setAuth, children }) {
       items: [
         { label: 'Attendance Rules', path: '/attendance-rules', icon: ShieldCheck, iconColor: '#2563EB' },
         { label: 'Holiday & Locations', path: '/holiday-locations', icon: MapPin, iconColor: '#059669' },
+        { label: 'Geofences', path: '/geofences', icon: MapPin, iconColor: '#EA580C' },
       ]
     },
     {
@@ -215,6 +218,7 @@ function MainLayout({ auth, setAuth, children }) {
       iconColor: '#DB2777', // Bright Pink
       items: [
         { label: 'Manual Log', path: '/attendance/manual', icon: FileCheck, iconColor: '#2563EB' },
+        { label: 'Mobile Entry', path: '/mobile/punch', icon: TabletSmartphone, iconColor: '#DB2777' },
         { label: 'Leave', path: '/leaves', icon: Plane, iconColor: '#059669' },
         { label: 'Overtime', path: '/approvals/overtime', icon: Clock, iconColor: '#D97706' },
       ]
@@ -363,9 +367,9 @@ function MainLayout({ auth, setAuth, children }) {
                 src="/vayutime_logo.png?v=5"
                 alt="VayuTime Logo"
                 className="object-contain"
-                style={{ 
-                  height: '64px', 
-                  width: 'auto', 
+                style={{
+                  height: '64px',
+                  width: 'auto',
                   maxWidth: '280px',
                   display: 'block',
                   objectFit: 'contain'
@@ -683,6 +687,7 @@ export default function App() {
                         <Route path="/rules/global" element={<AttendanceRules />} />
                         <Route path="/rules/department" element={<AttendanceRules />} />
                         <Route path="/holiday-locations" element={<HolidayLocation />} />
+                        <Route path="/geofences" element={<Geofences />} />
 
                         {/* Attendance Module - Shift */}
                         <Route path="/break-times" element={<GenericCrud title="Break Times" endpoint="/api/break-times" columns={[{ key: 'name', label: 'Name' }, { key: 'start_time', label: 'Start' }, { key: 'end_time', label: 'End' }]} icon={Clock} />} />
@@ -698,6 +703,7 @@ export default function App() {
                         {/* Attendance Module - Approvals */}
                         <Route path="/attendance/manual" element={<ManualEntry />} />
                         <Route path="/leaves" element={<LeaveApplications />} />
+                        <Route path="/mobile/punch" element={<MobilePunch />} />
                         <Route path="/approvals/overtime" element={<GenericCrud title="Overtime Approvals" endpoint="/api/approvals/overtime" columns={[{ key: 'employee_name', label: 'Employee' }, { key: 'date', label: 'Date' }, { key: 'hours', label: 'Hours' }, { key: 'status', label: 'Status' }]} icon={Clock} />} />
 
                         {/* Attendance Module - Holiday & Leave */}
