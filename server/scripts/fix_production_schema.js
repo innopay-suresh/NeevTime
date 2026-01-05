@@ -870,6 +870,38 @@ async function fixProductionSchema() {
     await runQuery(`CREATE INDEX IF NOT EXISTS idx_device_commands_status ON device_commands(status)`, 'idx_device_commands_status');
     await runQuery(`CREATE INDEX IF NOT EXISTS idx_system_logs_created ON system_logs(created_at DESC)`, 'idx_system_logs_created');
 
+    // ==========================================
+    // 16. FIX CRITICAL CONSTRAINTS
+    // ==========================================
+    console.log('\n📦 16. Fixing critical constraints...');
+
+    // Add unique constraint on (employee_code, punch_time) for attendance_logs
+    // This is required for the ON CONFLICT clause in adms.js
+    await runQuery(`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint 
+                WHERE conname = 'attendance_logs_emp_time_unique'
+            ) THEN
+                -- First, remove duplicates if any exist
+                DELETE FROM attendance_logs a
+                USING attendance_logs b
+                WHERE a.id < b.id
+                AND a.employee_code = b.employee_code
+                AND a.punch_time = b.punch_time;
+                
+                -- Then create the unique constraint
+                ALTER TABLE attendance_logs 
+                ADD CONSTRAINT attendance_logs_emp_time_unique 
+                UNIQUE (employee_code, punch_time);
+            END IF;
+        END $$;
+    `, 'attendance_logs_emp_time_unique constraint');
+
+    // Add updated_at column to device_capabilities if missing
+    await runQuery(`ALTER TABLE device_capabilities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`, 'device_capabilities.updated_at');
+
     console.log('\n✅ Comprehensive Production Schema Fix completed!');
     console.log('\n📋 Summary: All tables and columns have been verified and created if missing.');
     console.log('   You can now safely rebuild Docker and run the application.\n');
