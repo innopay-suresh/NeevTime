@@ -9,6 +9,7 @@ import {
     ChevronRight, Circle
 } from 'lucide-react';
 import { SkeletonStatCard } from '../components/SkeletonLoader';
+import { formatTimeShort } from '../utils/dateFormat';
 
 export default function Dashboard() {
     const [stats, setStats] = useState({
@@ -692,7 +693,7 @@ export default function Dashboard() {
                                                     </div>
                                                     <div className="text-right">
                                                         <div className="text-sm font-bold font-mono" style={{ color: '#111827' }}>
-                                                            {new Date(log.punch_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                                            {formatTimeShort(log.punch_time)}
                                                         </div>
                                                         <div className={`text-[10px] font-semibold uppercase tracking-wider mt-0.5 ${log.punch_type === 'IN' ? 'text-green-600' : 'text-red-600'}`}>
                                                             {log.punch_type || 'PUNCH'}
@@ -723,7 +724,7 @@ export default function Dashboard() {
                                                     </div>
                                                     <div className="text-right">
                                                         <div className="text-sm font-bold font-mono" style={{ color: '#111827' }}>
-                                                            {new Date(log.punch_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                                            {formatTimeShort(log.punch_time)}
                                                         </div>
                                                         <div className={`text-[10px] font-semibold uppercase tracking-wider mt-0.5 ${log.punch_type === 'IN' ? 'text-green-600' : 'text-red-600'}`}>
                                                             {log.punch_type || 'PUNCH'}

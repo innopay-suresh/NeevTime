@@ -4,6 +4,7 @@ import io from 'socket.io-client';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { RefreshCw, FileText, FileSpreadsheet, Table2, Inbox, Fingerprint, Activity, Clock, LogIn, LogOut } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/excelExport';
+import { formatTimestamp } from '../utils/dateFormat';
 
 export default function Logs() {
     const [logs, setLogs] = useState([]);
@@ -243,8 +244,8 @@ export default function Logs() {
                                             </td>
                                             <td>
                                                 <div className="cell-timestamp">
-                                                    <span className="cell-timestamp-date">{new Date(log.punch_time).toLocaleDateString()}</span>
-                                                    <span className="cell-timestamp-time ml-2">{new Date(log.punch_time).toLocaleTimeString()}</span>
+                                                    <span className="cell-timestamp-date">{formatTimestamp(log.punch_time).date}</span>
+                                                    <span className="cell-timestamp-time ml-2">{formatTimestamp(log.punch_time).time}</span>
                                                 </div>
                                             </td>
                                             <td>
