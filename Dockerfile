@@ -49,6 +49,7 @@ COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 # Copy backend
 WORKDIR /app
 COPY --from=backend /app/server ./
+COPY database /app/database
 
 # Copy Nginx configuration
 COPY nginx-docker.conf /etc/nginx/conf.d/default.conf
