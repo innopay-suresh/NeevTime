@@ -28,31 +28,39 @@ router.post('/login', async (req, res) => {
                 ['admin', hashedPassword, 'admin']
             );
             const token = jwt.sign({ id: newUser.rows[0].id, role: 'admin' }, JWT_SECRET);
-            
+
             // Log login event for first-time admin
             const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
             const userAgent = req.get('user-agent');
             logLogin('admin', ipAddress, userAgent, newUser.rows[0].id).catch(err => {
                 console.error('Failed to log login:', err);
             });
-            
+
             return res.json({ token, user: { username: 'admin', role: 'admin' } });
         }
 
-        if (!user) return res.status(400).json({ error: 'User not found' });
+        if (!user) {
+            console.log(`[LOGIN FAILED] User not found: ${username}`);
+            return res.status(400).json({ error: 'User not found' });
+        }
 
         const validPass = await bcrypt.compare(password, user.password_hash);
+        console.log(`[LOGIN DEBUG] Request for: ${username}`);
+        console.log(`[LOGIN DEBUG] Input password: ${password}`);
+        console.log(`[LOGIN DEBUG] Stored hash: ${user.password_hash}`);
+        console.log(`[LOGIN DEBUG] Match result: ${validPass}`);
+
         if (!validPass) return res.status(400).json({ error: 'Invalid password' });
 
         const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET);
-        
+
         // Log login event
         const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
         const userAgent = req.get('user-agent');
         logLogin(user.username, ipAddress, userAgent, user.id).catch(err => {
             console.error('Failed to log login:', err);
         });
-        
+
         res.json({ token, user: { username: user.username, role: user.role } });
     } catch (err) {
         console.error(err);
